@@ -5,5 +5,5 @@ pom.xml.versionsBackup
 pom.xml.next
 release.properties
 .project
-.classpath
+zsync-core/.classpath
 .settings/

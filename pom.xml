@@ -76,6 +76,19 @@
         <version>1.11.11</version>
         <extensions>true</extensions>
       </plugin>
+      <plugin>
+      <artifactId>maven-assembly-plugin</artifactId>
+      <configuration>
+        <archive>
+          <manifest>
+            <mainClass>com.salesforce.zsync.Zsync</mainClass>
+          </manifest>
+        </archive>
+        <descriptorRefs>
+          <descriptorRef>jar-with-dependencies</descriptorRef>
+        </descriptorRefs>
+      </configuration>
+    </plugin>
     </plugins>
     <pluginManagement>
       <plugins>
@@ -115,6 +128,13 @@
                   <goal>sign</goal>
                 </goals>
               </execution>
+              <execution>
+			    <id>make-assembly</id>
+				<phase>package</phase>
+				<goals>
+				  <goal>single</goal>
+				</goals>
+			  </execution>
             </executions>
           </plugin>
         </plugins>
