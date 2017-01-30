@@ -28,6 +28,7 @@ import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.ConnectException;
 import java.net.URI;
 import java.nio.channels.FileChannel;
 import java.nio.channels.ReadableByteChannel;
@@ -406,9 +407,13 @@ public class Zsync {
 
     try (final OutputFileWriter outputFileWriter = new OutputFileWriter(outputFile, controlFile, events.getOutputFileWriteListener())) {
       if (!processInputFiles(outputFileWriter, controlFile, options.getInputFiles(), events)) {
-        this.httpClient.partialGet(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
+          this.httpClient.partialGet(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
+          //The OkHttpClient gives misleading errors so the HttpsURLConnection is useful for debugging
+          //this.httpClient.partialGetOracle(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
         events.getRemoteFileDownloadListener());
       }
+    } catch (final ConnectException exception) {
+      throw new ZsyncException("Did you install UnlimitedJCEPolicyJDK8?", exception);
     } catch (final ChecksumValidationIOException exception) {
       throw new ZsyncChecksumValidationFailedException("Calculated checksum does not match expected checksum");
     } catch (IOException | HttpError e) {
@@ -537,7 +542,7 @@ public class Zsync {
     }
     final FileSystem fs = FileSystems.getDefault();
     final Options options = new Options();
-    final List<String> list = Arrays.asList(args);
+    final ArrayList<String> list = new ArrayList<String>(Arrays.asList(args));
     int index = list.indexOf("-i");
     if (index > -1) {
       list.remove(index);
@@ -661,6 +666,10 @@ public class Zsync {
       + "             load (this is analogous to adding a <base href=\"...\"> to a downloaded web page to make the links work).\n"
       + "\n"
       + "      -V     Prints the version of zsync.\n"
+      + "\n"
+      + "JAVA OPTIONS\n"
+      + "      -Djavax.net.debug=ssl:handshake\n"
+      + "             Provides SSL debug information which will indicate if UnlimitedJCEPolicyJDK8 is installed or required\n"
       + "\n"
       + "SEE ALSO\n"
       + "      zsyncmake(1)\n"

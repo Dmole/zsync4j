@@ -1,19 +1,19 @@
 /**
  * Copyright (c) 2015, Salesforce.com, Inc. All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without modification, are permitted
  * provided that the following conditions are met:
- * 
+ *
  * Redistributions of source code must retain the above copyright notice, this list of conditions
  * and the following disclaimer.
- * 
+ *
  * Redistributions in binary form must reproduce the above copyright notice, this list of conditions
  * and the following disclaimer in the documentation and/or other materials provided with the
  * distribution.
- * 
+ *
  * Neither the name of Salesforce.com nor the names of its contributors may be used to endorse or
  * promote products derived from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR
  * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
  * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR
@@ -41,10 +41,15 @@ import static java.util.Collections.newSetFromMap;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.Proxy;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.KeyManagementException;
+import java.security.NoSuchAlgorithmException;
 import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collections;
@@ -53,6 +58,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+
+import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLSession;
 
 import com.google.common.io.ByteStreams;
 import com.google.common.net.MediaType;
@@ -65,12 +74,13 @@ import com.squareup.okhttp.Challenge;
 import com.squareup.okhttp.OkHttpClient;
 import com.squareup.okhttp.Request;
 import com.squareup.okhttp.Request.Builder;
+
 import com.squareup.okhttp.Response;
 import com.squareup.okhttp.ResponseBody;
 
 /**
- * A thin wrapper around {@link OkHttpClient} to facilitate full and partial download of resources
- * with
+ * A thin wrapper around {@link OkHttpClient} to facilitate full and partial
+ * download of resources with
  *
  * @author bbusjaeger
  */
@@ -105,9 +115,10 @@ public class HttpClient {
   }
 
   /**
-   * Emits an <code>initiating</code> event prior to sending the Http request to the sever. Once the
-   * response has been received and the header parsed, emits a <code>started</code> event prior to
-   * transferring the response body. The length may be -1 if the content length is unknown.
+   * Emits an <code>initiating</code> event prior to sending the Http request
+   * to the sever. Once the response has been received and the header parsed,
+   * emits a <code>started</code> event prior to transferring the response
+   * body. The length may be -1 if the content length is unknown.
    *
    * @author bbusjaeger
    */
@@ -132,7 +143,8 @@ public class HttpClient {
     checkArgument(okHttpClient != null, "httpClient cannot be null");
     this.okHttpClient = okHttpClient;
     this.basicChallengeReceived = newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-    // setting authenticator to null, so it does not delegate to java Authenticator
+    // setting authenticator to null, so it does not delegate to java
+    // Authenticator
     this.okHttpClient.setAuthenticator(new Authenticator() {
       @Override
       public Request authenticateProxy(Proxy proxy, Response response) throws IOException {
@@ -147,8 +159,9 @@ public class HttpClient {
   }
 
   /**
-   * Stores the resource referred to by the given uri at the given output location. Progress of the
-   * file download can be monitored via the optional transfer listener.
+   * Stores the resource referred to by the given uri at the given output
+   * location. Progress of the file download can be monitored via the optional
+   * transfer listener.
    *
    * @param uri
    * @param output
@@ -157,8 +170,7 @@ public class HttpClient {
    * @throws IOException
    * @throws HttpError
    */
-  public void get(URI uri, Path output, Map<String, ? extends Credentials> credentials, HttpTransferListener listener)
-      throws IOException, HttpError {
+  public void get(URI uri, Path output, Map<String, ? extends Credentials> credentials, HttpTransferListener listener) throws IOException, HttpError {
     final Path parent = output.getParent();
     final Path tmp = parent.resolve(output.getFileName() + ".part");
     Files.createDirectories(parent);
@@ -169,19 +181,22 @@ public class HttpClient {
   }
 
   /**
-   * Opens a connection to the remote resource referred to by the given uri. The returned stream is
-   * decorated with to report download progress to the given listener.
+   * Opens a connection to the remote resource referred to by the given uri.
+   * The returned stream is decorated with to report download progress to the
+   * given listener.
    *
-   * @param uri The URI of the resource to retrieve
-   * @param credentials The credentials for authenticating with remote hosts
-   * @param listener Listener to monitor long running transfers
+   * @param uri
+   *            The URI of the resource to retrieve
+   * @param credentials
+   *            The credentials for authenticating with remote hosts
+   * @param listener
+   *            Listener to monitor long running transfers
    * @return
    * @throws IOException
    * @throws HttpError
    */
-  public InputStream get(URI uri, Map<String, ? extends Credentials> credentials, HttpTransferListener listener)
-      throws IOException, HttpError {
-    final Response response = executeWithAuthRetry(uri, credentials, listener, Collections.<ContentRange>emptyList());
+  public InputStream get(URI uri, Map<String, ? extends Credentials> credentials, HttpTransferListener listener) throws IOException, HttpError {
+    final Response response = executeWithAuthRetry(uri, credentials, listener, Collections.<ContentRange> emptyList());
     final int code = response.code();
     if (code != HTTP_OK) {
       throw new HttpError(response.message(), code);
@@ -190,7 +205,8 @@ public class HttpClient {
   }
 
   /**
-   * Retrieves the requested ranges for the resource referred to by the given uri.
+   * Retrieves the requested ranges for the resource referred to by the given
+   * uri.
    *
    * @param uri
    * @param ranges
@@ -199,8 +215,7 @@ public class HttpClient {
    * @throws IOException
    * @throws HttpError
    */
-  public void partialGet(URI uri, List<ContentRange> ranges, Map<String, ? extends Credentials> credentials,
-      RangeReceiver receiver, RangeTransferListener listener) throws IOException, HttpError {
+  public void partialGet(URI uri, List<ContentRange> ranges, Map<String, ? extends Credentials> credentials, RangeReceiver receiver, RangeTransferListener listener) throws IOException, HttpError {
     final Set<ContentRange> remaining = new LinkedHashSet<>(ranges);
     while (!remaining.isEmpty()) {
       final List<ContentRange> next = copyOf(limit(remaining, min(remaining.size(), MAXIMUM_RANGES_PER_HTTP_REQUEST)));
@@ -216,7 +231,8 @@ public class HttpClient {
       if (code != HTTP_PARTIAL) {
         throw new HttpError(response.message(), code);
       }
-      // check if we're dealing with multipart (multiple ranges) or simple (single range) response
+      // check if we're dealing with multipart (multiple ranges) or simple
+      // (single range) response
       final MediaType mediaType = parseContentType(response);
       if (mediaType != null && "multipart".equals(mediaType.type())) {
         final byte[] boundary = getBoundary(mediaType);
@@ -227,8 +243,102 @@ public class HttpClient {
     }
   }
 
-  Response executeWithAuthRetry(URI uri, Map<String, ? extends Credentials> credentials, HttpTransferListener listener,
-      List<ContentRange> ranges) throws IOException {
+  public void partialGetOracle(URI uri, List<ContentRange> ranges, Map<String, ? extends Credentials> credentials, RangeReceiver receiver, RangeTransferListener listener)
+  throws IOException, HttpError {
+    final Set<ContentRange> remaining = new LinkedHashSet<>(ranges);
+    while (!remaining.isEmpty()) {
+      final List<ContentRange> next = copyOf(limit(remaining, min(remaining.size(), MAXIMUM_RANGES_PER_HTTP_REQUEST)));
+      final HttpTransferListener requestListener = listener.newTransfer(next);
+      final URLConnection conn = executeOracle(uri, credentials, requestListener, next);
+      final int code;
+      String message;
+      if (conn instanceof HttpURLConnection) {
+        code = ((HttpURLConnection) conn).getResponseCode();
+        message = ((HttpURLConnection) conn).getResponseMessage();
+      } else if (conn instanceof HttpsURLConnection) {
+        code = ((HttpsURLConnection) conn).getResponseCode();
+        message = ((HttpsURLConnection) conn).getResponseMessage();
+      } else {
+        throw new IOException("Unsupported URLConnection class" + conn.getClass().getName());
+      }
+      // tolerate case that server does not support range requests
+      if (code == HTTP_OK) {
+        receiver.receive(new ContentRange(0, conn.getContentLength()), inputStream(conn, requestListener));
+        return;
+      }
+      // otherwise only accept partial content response
+      if (code != HTTP_PARTIAL) {
+        throw new HttpError(message, code);
+      }
+      // check if we're dealing with multipart (multiple ranges) or simple
+      // (single range) response
+      final MediaType mediaType = parseContentType(conn);
+      if (mediaType != null && "multipart".equals(mediaType.type())) {
+        final byte[] boundary = getBoundary(mediaType);
+        handleMultiPartBody(conn, receiver, remaining, requestListener, boundary);
+      } else {
+        handleSinglePartBody(conn, receiver, remaining, requestListener);
+      }
+    }
+  }
+
+  private void handleSinglePartBody(URLConnection conn, RangeReceiver receiver, Set<ContentRange> remaining, HttpTransferListener listener) throws IOException {
+    final String contentRange = conn.getHeaderField("Content-Range");
+    if (contentRange == null) {
+      throw new IOException("Content-Range header missing");
+    }
+
+    ContentRange range;
+    try {
+      range = parseContentRange(contentRange);
+    } catch (final ParseException e) {
+      throw new IOException("Failed to parse Content-Range header " + contentRange, e);
+    }
+    if (!remaining.remove(range)) {
+      throw new IOException("Received range " + range + " not one of requested " + remaining);
+    }
+
+    final InputStream in = inputStream(conn, listener);
+    receiver.receive(range, in);
+  }
+
+  private void handleMultiPartBody(URLConnection conn, RangeReceiver receiver, Set<ContentRange> remaining, HttpTransferListener listener, byte[] boundary) throws IOException {
+    try (InputStream in = inputStream(conn, listener)) {
+      ContentRange range;
+      while ((range = nextPart(in, boundary)) != null) {
+        // technically it's OK for server to combine or re-order ranges.
+        // However, since we
+        // already combine and sort ranges, this should not happen
+        if (!remaining.remove(range)) {
+          throw new IOException("Received range " + range + " not one of requested " + remaining);
+        }
+        final InputStream part = ByteStreams.limit(in, range.length());
+        receiver.receive(range, part);
+      }
+    }
+  }
+
+  private MediaType parseContentType(URLConnection conn) throws IOException {
+    final String contentType = conn.getHeaderField("Content-Type");
+    if (contentType == null) {
+      return null;
+    }
+    try {
+      return MediaType.parse(contentType);
+    } catch (final IllegalArgumentException e) {
+      throw new IOException("Failed to parse Content-Type header " + contentType, e);
+    }
+  }
+
+  private InputStream inputStream(URLConnection conn, HttpTransferListener listener) throws IOException {
+    return conn.getInputStream();
+    // FIXME ?
+    // return new
+    // ObservableResourceInputStream<URLConnection>(conn.getInputStream(),
+    // listener, conn, conn.getContentLength());
+  }
+
+  Response executeWithAuthRetry(URI uri, Map<String, ? extends Credentials> credentials, HttpTransferListener listener, List<ContentRange> ranges) throws IOException {
     Request request = buildRequest(uri, credentials, ranges);
     listener.initiating(request);
     Response response = this.okHttpClient.newCall(request).execute();
@@ -237,7 +347,8 @@ public class HttpClient {
       if (!((code == HTTP_UNAUTHORIZED || code == HTTP_PROXY_AUTH) && containsBasic(response.challenges()))) {
         break;
       }
-      // if we are receiving a basic authorization challenges, set header and retry
+      // if we are receiving a basic authorization challenges, set header
+      // and retry
       final String host = response.request().uri().getHost();
       this.basicChallengeReceived.add(host);
       final Credentials creds = credentials.get(host);
@@ -249,6 +360,64 @@ public class HttpClient {
       response = this.okHttpClient.newCall(request).execute();
     }
     return response;
+  }
+
+  URLConnection executeOracle(URI uri, Map<String, ? extends Credentials> credentials, HttpTransferListener listener, List<ContentRange> ranges) throws IOException {
+    final URL url = new URL(uri.toString());
+    final URLConnection conn = url.openConnection();
+    if (this.basicChallengeReceived.contains(uri.getHost()) && "https".equals(uri.getScheme())) {
+      final Credentials creds = credentials.get(uri.getHost());
+      if (creds != null) {
+        conn.setRequestProperty("Authorization", creds.basic());
+      }
+    }
+    if (!ranges.isEmpty()) {
+      conn.setRequestProperty("Range", "bytes=" + on(',').join(ranges));
+    }
+    trustAllHttpsCertificates(conn);
+    conn.connect();
+    return conn;
+  }
+
+  private static void trustAllHttpsCertificates(URLConnection urlc) throws IOException {
+    if (!(urlc instanceof HttpsURLConnection)) {
+      return;
+    }
+    final HttpsURLConnection conn = (HttpsURLConnection) urlc;
+    final HostnameVerifier blindHostnameVerifier = new HostnameVerifier() {
+      @Override
+      public boolean verify(String urlHostName, SSLSession session) {
+        return true;
+      }
+    };
+    conn.setHostnameVerifier(blindHostnameVerifier);
+    final javax.net.ssl.TrustManager[] trustAllCerts = { new BlindTrustManager() };
+    try {
+      final javax.net.ssl.SSLContext sc = javax.net.ssl.SSLContext.getInstance("SSL");
+      sc.init(null, trustAllCerts, null);
+      conn.setSSLSocketFactory(sc.getSocketFactory());
+    } catch (final NoSuchAlgorithmException e) {
+      throw new IOException(e);
+    } catch (final KeyManagementException e) {
+      throw new IOException(e);
+    }
+  }
+
+  private static class BlindTrustManager implements javax.net.ssl.TrustManager, javax.net.ssl.X509TrustManager {
+    @Override
+    public java.security.cert.X509Certificate[] getAcceptedIssuers() {
+      return new java.security.cert.X509Certificate[0];
+    }
+
+    @Override
+    public void checkServerTrusted(java.security.cert.X509Certificate[] certs, String authType) throws java.security.cert.CertificateException {
+      return;
+    }
+
+    @Override
+    public void checkClientTrusted(java.security.cert.X509Certificate[] certs, String authType) throws java.security.cert.CertificateException {
+      return;
+    }
   }
 
   Request buildRequest(URI uri, Map<String, ? extends Credentials> credentials, List<ContentRange> ranges) {
@@ -267,7 +436,7 @@ public class HttpClient {
   }
 
   static boolean containsBasic(Iterable<? extends Challenge> challenges) {
-    for (Challenge challenge : challenges) {
+    for (final Challenge challenge : challenges) {
       if ("Basic".equalsIgnoreCase(challenge.getScheme())) {
         return true;
       }
@@ -275,8 +444,7 @@ public class HttpClient {
     return false;
   }
 
-  static void handleSinglePartBody(Response response, RangeReceiver receiver, final Set<ContentRange> remaining,
-      HttpTransferListener listener) throws IOException {
+  static void handleSinglePartBody(Response response, RangeReceiver receiver, final Set<ContentRange> remaining, HttpTransferListener listener) throws IOException {
     final String contentRange = response.header("Content-Range");
     if (contentRange == null) {
       throw new IOException("Content-Range header missing");
@@ -285,23 +453,23 @@ public class HttpClient {
     ContentRange range;
     try {
       range = parseContentRange(contentRange);
-    } catch (ParseException e) {
+    } catch (final ParseException e) {
       throw new IOException("Failed to parse Content-Range header " + contentRange, e);
     }
     if (!remaining.remove(range)) {
       throw new IOException("Received range " + range + " not one of requested " + remaining);
     }
 
-    InputStream in = inputStream(response, listener);
+    final InputStream in = inputStream(response, listener);
     receiver.receive(range, in);
   }
 
-  static void handleMultiPartBody(Response response, RangeReceiver receiver, final Set<ContentRange> remaining,
-      HttpTransferListener listener, byte[] boundary) throws IOException {
+  static void handleMultiPartBody(Response response, RangeReceiver receiver, final Set<ContentRange> remaining, HttpTransferListener listener, byte[] boundary) throws IOException {
     try (InputStream in = inputStream(response, listener)) {
       ContentRange range;
       while ((range = nextPart(in, boundary)) != null) {
-        // technically it's OK for server to combine or re-order ranges. However, since we
+        // technically it's OK for server to combine or re-order ranges.
+        // However, since we
         // already combine and sort ranges, this should not happen
         if (!remaining.remove(range)) {
           throw new IOException("Received range " + range + " not one of requested " + remaining);
@@ -314,12 +482,11 @@ public class HttpClient {
 
   static InputStream inputStream(Response response, ResourceTransferListener<Response> listener) throws IOException {
     final ResponseBody body = response.body();
-    final InputStream in = body.byteStream();
-    return new ObservableResourceInputStream<>(in, listener, response, response.body().contentLength());
+    return new ObservableResourceInputStream<>(body.byteStream(), listener, response, body.contentLength());
   }
 
   static ContentRange nextPart(InputStream in, byte[] boundary) throws IOException {
-    int c = in.read();
+    final int c = in.read();
     if (c == '\r') {
       if (!(in.read() == '\n' && in.read() == '-' && in.read() == '-')) {
         throw new IOException("Expected part being not matched");
@@ -355,14 +522,14 @@ public class HttpClient {
         if (range != null) {
           throw new IOException("Multiple content range headers in multipart");
         }
-        int idx = header.indexOf(':');
+        final int idx = header.indexOf(':');
         if (idx == -1) {
           throw new IOException("Invalid Content-Range header " + header + " in multipart");
         }
         final String value = header.substring(idx + 2);
         try {
           range = parseContentRange(value);
-        } catch (ParseException e) {
+        } catch (final ParseException e) {
           throw new IOException("Failed to parse Content-Range header " + value, e);
         }
       }
@@ -389,8 +556,9 @@ public class HttpClient {
   }
 
   /**
-   * Returns the boundary attribtue of the given multipart/byteranges media type. If the subtype is
-   * not byteranges or no boundary attribute value is set, an IOException is thrown.
+   * Returns the boundary attribtue of the given multipart/byteranges media
+   * type. If the subtype is not byteranges or no boundary attribute value is
+   * set, an IOException is thrown.
    *
    * @param mediaType
    * @return
@@ -409,12 +577,15 @@ public class HttpClient {
   }
 
   /**
-   * Parses the Content-Type of the given response. If the response does not have a Content-Type
-   * set, null is returned. If the value cannot be parsed, an IOException is thrown.
+   * Parses the Content-Type of the given response. If the response does not
+   * have a Content-Type set, null is returned. If the value cannot be parsed,
+   * an IOException is thrown.
    *
-   * @param response Response for which to parse the Content-Type
+   * @param response
+   *            Response for which to parse the Content-Type
    * @return MediaType parsed from Content-Type value
-   * @throws IOException If no Content-Type value cannot be parsed
+   * @throws IOException
+   *             If no Content-Type value cannot be parsed
    */
   static MediaType parseContentType(final Response response) throws IOException {
     final String contentType = response.header("Content-Type");
@@ -423,7 +594,7 @@ public class HttpClient {
     }
     try {
       return MediaType.parse(contentType);
-    } catch (IllegalArgumentException e) {
+    } catch (final IllegalArgumentException e) {
       throw new IOException("Failed to parse Content-Type header " + contentType, e);
     }
   }
@@ -433,7 +604,8 @@ public class HttpClient {
    *
    * @param value
    * @return
-   * @throws ParseException If the ContentRange
+   * @throws ParseException
+   *             If the ContentRange
    */
   static ContentRange parseContentRange(String value) throws ParseException {
     final String prefix = "bytes ";
@@ -449,7 +621,7 @@ public class HttpClient {
     final long first;
     try {
       first = Long.parseLong(firstString);
-    } catch (NumberFormatException e) {
+    } catch (final NumberFormatException e) {
       throw new ParseException("Invalid first-byte-pos " + firstString, prefix.length());
     }
     final int dash = value.indexOf('/', idx);
@@ -461,13 +633,13 @@ public class HttpClient {
     final long last;
     try {
       last = Long.parseLong(lastString);
-    } catch (NumberFormatException e) {
+    } catch (final NumberFormatException e) {
       throw new ParseException("Invalid last-byte-pos " + lastString, idx + 1);
     }
     final ContentRange range;
     try {
       range = new ContentRange(first, last);
-    } catch (IllegalArgumentException e) {
+    } catch (final IllegalArgumentException e) {
       throw new ParseException(e.getMessage(), 0);
     }
     return range;
