@@ -38,6 +38,7 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -407,7 +408,7 @@ public class Zsync {
 
     try (final OutputFileWriter outputFileWriter = new OutputFileWriter(outputFile, controlFile, events.getOutputFileWriteListener())) {
       if (!processInputFiles(outputFileWriter, controlFile, options.getInputFiles(), events)) {
-          this.httpClient.partialGet(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
+        this.httpClient.partialGet(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
           //The OkHttpClient gives misleading errors so the HttpsURLConnection is useful for debugging
           //this.httpClient.partialGetOracle(remoteFileUri, outputFileWriter.getMissingRanges(), options.getCredentials(), events.getRangeReceiverListener(outputFileWriter),
         events.getRemoteFileDownloadListener());
@@ -596,17 +597,42 @@ public class Zsync {
     zsync.zsync(uri, options, observer);
     final ZsyncStats stats = observer.build();
     if (!options.getQuiet()) {
-      System.out.println("Total bytes written: " + stats.getTotalBytesWritten() + " (by input file: " + stats.getTotalBytesWrittenByInputFile() + ")");
-      System.out.println("Total bytes read: " + stats.getTotalBytesRead() + " (by input file: " + stats.getTotalBytesReadByInputFile() + ")");
-      System.out.println("Total bytes downloaded: "
-        + stats.getTotalBytesDownloaded()
-        + " (control file: "
-        + stats.getBytesDownloadedForControlFile()
-        + ", remote file: "
-        + stats.getBytesDownloadedFromRemoteFile()
-        + ")");
-      System.out.println("Total time: " + stats.getTotalElapsedMilliseconds() + " ms. Of which downloading " + stats.getElapsedMillisecondsDownloading() + " ms");
+      System.out.println(
+      "Downloaded " + friendlySize(stats.getTotalBytesDownloaded()) + " of " + friendlySize(stats.getTotalBytesWritten()) + " in " + friendlyTime(stats.getElapsedMillisecondsDownloading()) + ".");
     }
+  }
+
+  public static String friendlySize(long size) {
+    if (size < 0) {
+      return "error";
+    } else if (size == 0) {
+      return "0";
+    }
+    final String[] units = new String[] { "B", "KB", "MB", "GB", "TB" };
+    final int digitGroups = (int) (Math.log10(size) / Math.log10(1024));
+    return new DecimalFormat("#,##0.#").format(size / Math.pow(1024, digitGroups)) + " " + units[digitGroups];
+  }
+
+  public static String friendlyTime(long time) {
+    if (time < 0) {
+      return "error";
+    } else if (time == 0) {
+      return "no time";
+    }
+    if (time < 1000) {
+      return time + "ms";
+    }
+    final DecimalFormat d = new DecimalFormat("#,##0.#");
+    if (time < 1000 * 60) {
+      return d.format(time / 1000) + "s";
+    }
+    if (time < 1000 * 60 * 60) {
+      return d.format(time / (1000 * 60)) + "m";
+    }
+    if (time < 1000 * 60 * 60 * 24) {
+      return d.format(time / (1000 * 60 * 60)) + "h";
+    }
+    return d.format(time / (1000 * 60 * 60 * 24)) + "d";
   }
 
   private static void error(String err) {
